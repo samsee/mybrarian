@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Environment Variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Playwright
+.pytest_cache/
+playwright/.cache/
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+*.cache
+cache/
+__pycache__/
+
+# Project specific
+config.yaml
+my_books_index.json
+
+
+# Claude Code 관련
+.claude
+CLAUDE.md
