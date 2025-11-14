@@ -302,9 +302,6 @@ python -m src.cli search 9788966261161
 
 # 특정 소스만 검색
 python -m src.cli search "클린코드" --sources library,aladin
-
-# 결과를 JSON 파일로 저장
-python -m src.cli search "클린코드" --output results.json
 ```
 
 ## 📂 프로젝트 구조

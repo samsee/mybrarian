@@ -18,6 +18,7 @@ class LibraryAPI:
     """도서관 정보나루 API 클라이언트"""
 
     BASE_URL = "http://data4library.kr/api/bookExist"
+    LIBSRCH_URL = "http://data4library.kr/api/libSrch"
 
     def __init__(self, api_key: Optional[str] = None, library_codes: Optional[List[str]] = None):
         """
@@ -38,6 +39,49 @@ class LibraryAPI:
 
         if not self.library_codes:
             raise ValueError("검색할 도서관 코드가 설정되지 않았습니다.")
+
+        # 도서관 이름 캐시
+        self.library_names_cache = {}
+
+    async def _fetch_library_name(self, lib_code: str) -> str:
+        """
+        libSrch API로 도서관 이름 조회
+
+        Args:
+            lib_code: 도서관 코드
+
+        Returns:
+            도서관 이름
+        """
+        # 캐시 확인
+        if lib_code in self.library_names_cache:
+            return self.library_names_cache[lib_code]
+
+        params = {
+            "authKey": self.api_key,
+            "libCode": lib_code,
+            "format": "xml"
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.LIBSRCH_URL, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    response.raise_for_status()
+                    text = await response.text()
+
+                    root = ET.fromstring(text)
+                    lib_name_elem = root.find('.//libName')
+                    if lib_name_elem is not None and lib_name_elem.text:
+                        lib_name = lib_name_elem.text
+                        # 캐시에 저장
+                        self.library_names_cache[lib_code] = lib_name
+                        return lib_name
+
+        except Exception as e:
+            print(f"도서관 정보 조회 실패 (도서관 코드: {lib_code}): {e}")
+
+        # 실패 시 기본값
+        return f"도서관코드{lib_code}"
 
     async def search_by_isbn(self, isbn: str) -> List[Dict]:
         """
@@ -81,7 +125,14 @@ class LibraryAPI:
                     # print(f"Request URL: {response.url}")
                     # print(f"Response: {text}")
 
-                    return self._parse_bookexist_response(text, lib_code, isbn)
+                    result = self._parse_bookexist_response(text, lib_code, isbn)
+
+                    # 결과가 있으면 도서관 이름 가져오기
+                    if result:
+                        library_name = await self._fetch_library_name(lib_code)
+                        result['library_name'] = library_name
+
+                    return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             print(f"도서관 API 요청 실패 (도서관 코드: {lib_code}): {e}")
             return None
@@ -121,9 +172,10 @@ class LibraryAPI:
             loan_available = "대출가능" if loan_available_flag == 'Y' else "대출중"
 
             # bookExist API는 도서 정보를 제공하지 않음 (소장 여부와 대출 가능 여부만 제공)
+            # 도서관 이름은 _search_single_library에서 별도로 조회
             return {
                 'library_code': lib_code,
-                'library_name': self._get_library_name(lib_code),
+                'library_name': lib_code,  # 임시값, 나중에 업데이트됨
                 'isbn': isbn,
                 'loan_available': loan_available,
                 'available': loan_available_flag == 'Y'
@@ -155,17 +207,18 @@ class LibraryAPI:
         return library_names.get(lib_code, f"도서관코드{lib_code}")
 
 
-async def search_library(isbn: str) -> List[Dict]:
+async def search_library(isbn: str, library_codes: Optional[List[str]] = None) -> List[Dict]:
     """
     ISBN으로 도서관 소장 정보 검색 (편의 함수, 비동기)
 
     Args:
         isbn: ISBN-10 또는 ISBN-13
+        library_codes: 검색할 도서관 코드 리스트 (없으면 .env에서 로드)
 
     Returns:
         도서관별 소장 정보 리스트
     """
-    api = LibraryAPI()
+    api = LibraryAPI(library_codes=library_codes)
     return await api.search_by_isbn(isbn)
 
 
