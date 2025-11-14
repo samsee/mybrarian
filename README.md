@@ -90,9 +90,6 @@ TARGET_LIBRARIES=111003,111019,111027
 ONEDRIVE_BOOKS_PATH=C:/Users/YourUsername/OneDrive/Books
 
 # 로그인이 필요한 서비스 (선택사항)
-SSAFY_USERNAME=your_username
-SSAFY_PASSWORD=your_password
-
 RIDI_USERNAME=your_username
 RIDI_PASSWORD=your_password
 
@@ -324,7 +321,6 @@ mybrarian/
 │       ├── __init__.py
 │       ├── aladin.py        # 알라딘 API
 │       ├── library.py       # 공공도서관
-│       ├── ssafy_ebook.py   # 싸피 e-book
 │       ├── ridibooks.py     # 리디북스 셀렉트
 │       ├── bookers.py       # 부커스
 │       ├── google_play.py   # 구글 플레이북
