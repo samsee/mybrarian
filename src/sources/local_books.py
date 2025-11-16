@@ -6,9 +6,12 @@
 
 import os
 import re
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
+
+from src.plugins.base import BasePlugin, QueryType
 
 load_dotenv()
 
@@ -165,6 +168,76 @@ class LocalBooksSearcher:
             return 70
         else:
             return 60
+
+
+class LocalBooksPlugin(BasePlugin):
+    """
+    로컬 보유 장서 플러그인
+
+    로컬 파일 시스템에서 전자책 파일 검색
+    제목 검색만 지원 (ISBN 미지원)
+    """
+
+    name = "내 보유 장서"
+    supports_isbn = False
+    supports_title = True
+
+    def __init__(self, config: Optional[Dict] = None):
+        """
+        로컬 보유 장서 플러그인 초기화
+
+        Args:
+            config: 플러그인 설정 (config.yaml에서 로드)
+        """
+        super().__init__(config)
+        self.searcher = LocalBooksSearcher()
+
+    async def search(
+        self,
+        query: str,
+        query_type: QueryType = QueryType.AUTO,
+        max_results: int = 10
+    ) -> List[Dict]:
+        """
+        로컬 보유 장서에서 도서 검색 (제목만 지원)
+
+        Args:
+            query: 검색어 (제목)
+            query_type: 쿼리 타입
+            max_results: 최대 결과 수
+
+        Returns:
+            검색 결과 리스트
+        """
+        if query_type == QueryType.AUTO:
+            query_type = self.detect_query_type(query)
+
+        if query_type == QueryType.ISBN:
+            print("  로컬 보유 장서는 ISBN 검색을 지원하지 않습니다 (제목만 지원)")
+            return []
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.searcher.search(query, max_results)
+        )
+
+    def format_results(self, results: List[Dict]) -> None:
+        """
+        로컬 장서 검색 결과를 간단한 텍스트 형식으로 출력
+
+        Args:
+            results: 검색 결과 리스트
+        """
+        if not results:
+            print("  검색 결과가 없습니다.")
+            return
+
+        for idx, book in enumerate(results, 1):
+            print(f"\n  {idx}. {book.get('file_name', 'N/A')}")
+            print(f"     경로: {book.get('file_path', 'N/A')}")
+            print(f"     크기: {book.get('size_mb', 0):.2f} MB")
+            print(f"     일치도: {book.get('match_score', 0)}/100")
 
 
 def search_my_books(query: str, max_results: int = 10) -> List[Dict]:

@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
+from src.plugins.base import BasePlugin, QueryType
+
 load_dotenv()
 
 
@@ -223,6 +225,73 @@ async def extract_isbn(query: str) -> Optional[str]:
         return results[0]['isbn13']
 
     return None
+
+
+class AladinPlugin(BasePlugin):
+    """
+    알라딘 서점 플러그인
+
+    알라딘 API를 사용한 도서 검색 플러그인
+    """
+
+    name = "알라딘 서점"
+    supports_isbn = True
+    supports_title = True
+
+    def __init__(self, config: Optional[Dict] = None):
+        """
+        알라딘 플러그인 초기화
+
+        Args:
+            config: 플러그인 설정 (config.yaml에서 로드)
+        """
+        super().__init__(config)
+        self.api = AladinAPI()
+
+    async def search(
+        self,
+        query: str,
+        query_type: QueryType = QueryType.AUTO,
+        max_results: int = 10
+    ) -> List[Dict]:
+        """
+        알라딘에서 도서 검색
+
+        Args:
+            query: 검색어 (ISBN 또는 제목)
+            query_type: 쿼리 타입
+            max_results: 최대 결과 수
+
+        Returns:
+            검색 결과 리스트
+        """
+        if query_type == QueryType.AUTO:
+            query_type = self.detect_query_type(query)
+
+        if query_type == QueryType.ISBN:
+            result = await self.api.search_by_isbn(query)
+            return [result] if result else []
+        else:
+            return await self.api.search_by_title(query, max_results)
+
+    def format_results(self, results: List[Dict]) -> None:
+        """
+        알라딘 검색 결과를 간단한 텍스트 형식으로 출력
+
+        Args:
+            results: 검색 결과 리스트
+        """
+        if not results:
+            print("  검색 결과가 없습니다.")
+            return
+
+        for idx, book in enumerate(results, 1):
+            print(f"\n  {idx}. {book.get('title', 'N/A')}")
+            print(f"     저자: {book.get('author', 'N/A')}")
+            print(f"     출판사: {book.get('publisher', 'N/A')}")
+            print(f"     ISBN13: {book.get('isbn13', 'N/A')}")
+            if book.get('priceSales'):
+                print(f"     가격: {book.get('priceSales', 'N/A')}원")
 
 
 async def main():

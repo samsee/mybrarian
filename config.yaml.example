@@ -1,26 +1,40 @@
 sources:
   - name: "내 보유 장서"
+    module: "src.sources.local_books"
+    class: "LocalBooksPlugin"
     priority: 1
     enabled: true
   - name: "공공도서관"
+    module: "src.sources.library"
+    class: "LibraryPlugin"
     priority: 2
     enabled: true
     libraries:
       - "LIB001"  # 도서관 코드 (예: 111003 - 국립중앙도서관)
       - "LIB002"
   - name: "리디북스 셀렉트"
+    module: "src.sources.ridibooks"
+    class: "RidibooksPlugin"
     priority: 3
-    enabled: true
+    enabled: false
   - name: "싸피 e-book"
+    module: "src.sources.ssafy_ebook"
+    class: "SSAFYPlugin"
     priority: 4
     enabled: true
   - name: "부커스"
+    module: "src.sources.bookers"
+    class: "BookersPlugin"
     priority: 5
-    enabled: true
+    enabled: false
   - name: "구글 플레이북"
+    module: "src.sources.google_play"
+    class: "GooglePlayPlugin"
     priority: 6
     enabled: false
   - name: "알라딘 서점"
+    module: "src.sources.aladin"
+    class: "AladinPlugin"
     priority: 7
     enabled: true
 

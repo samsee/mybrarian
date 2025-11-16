@@ -11,6 +11,8 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
+from src.plugins.base import BasePlugin, QueryType
+
 load_dotenv()
 
 
@@ -205,6 +207,76 @@ class LibraryAPI:
             # 필요한 도서관 코드 추가
         }
         return library_names.get(lib_code, f"도서관코드{lib_code}")
+
+
+class LibraryPlugin(BasePlugin):
+    """
+    공공도서관 플러그인
+
+    도서관 정보나루 API를 사용한 공공도서관 도서 검색 플러그인
+    ISBN 검색만 지원
+    """
+
+    name = "공공도서관"
+    supports_isbn = True
+    supports_title = False
+
+    def __init__(self, config: Optional[Dict] = None):
+        """
+        공공도서관 플러그인 초기화
+
+        Args:
+            config: 플러그인 설정 (config.yaml에서 로드)
+        """
+        super().__init__(config)
+
+        library_codes = None
+        if config and 'libraries' in config:
+            library_codes = config['libraries']
+
+        self.api = LibraryAPI(library_codes=library_codes)
+
+    async def search(
+        self,
+        query: str,
+        query_type: QueryType = QueryType.AUTO,
+        max_results: int = 10
+    ) -> List[Dict]:
+        """
+        공공도서관에서 도서 검색 (ISBN만 지원)
+
+        Args:
+            query: 검색어 (ISBN)
+            query_type: 쿼리 타입
+            max_results: 최대 결과 수 (사용되지 않음)
+
+        Returns:
+            검색 결과 리스트
+        """
+        if query_type == QueryType.AUTO:
+            query_type = self.detect_query_type(query)
+
+        if query_type == QueryType.TITLE:
+            print("  공공도서관은 제목 검색을 지원하지 않습니다 (ISBN만 지원)")
+            return []
+
+        return await self.api.search_by_isbn(query)
+
+    def format_results(self, results: List[Dict]) -> None:
+        """
+        공공도서관 검색 결과를 간단한 텍스트 형식으로 출력
+
+        Args:
+            results: 검색 결과 리스트
+        """
+        if not results:
+            print("  검색 결과가 없습니다.")
+            return
+
+        for idx, lib in enumerate(results, 1):
+            available = "대출가능" if lib.get('available') else "대출중"
+            symbol = "✓" if lib.get('available') else "✗"
+            print(f"  {idx}. {lib.get('library_name', 'N/A')} - {available} {symbol}")
 
 
 async def search_library(isbn: str, library_codes: Optional[List[str]] = None) -> List[Dict]:

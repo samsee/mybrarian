@@ -12,8 +12,7 @@ from typing import List, Dict, Optional, Tuple
 from dotenv import load_dotenv
 
 from src.sources.aladin import search_aladin, extract_isbn
-from src.sources.library import search_library
-from src.sources.local_books import search_my_books
+from src.plugins import PluginLoader, PluginRegistry, QueryType
 
 
 def load_config() -> Dict:
@@ -37,7 +36,7 @@ def get_enabled_sources_by_priority(config: Dict) -> List[Dict]:
     return sorted(enabled_sources, key=lambda x: x.get('priority', 999))
 
 
-def select_book_from_aladin(query: str, max_results: int = 10) -> Optional[Tuple[str, str]]:
+async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional[Tuple[str, str]]:
     """
     알라딘에서 도서를 검색하고 사용자가 선택
     (isbn13, title) 튜플 반환, 취소 시 None 반환
@@ -46,7 +45,7 @@ def select_book_from_aladin(query: str, max_results: int = 10) -> Optional[Tuple
     print("=" * 60)
 
     try:
-        results = search_aladin(query, max_results=max_results)
+        results = await search_aladin(query, max_results=max_results)
 
         if not results:
             print("알라딘에서 검색 결과를 찾을 수 없습니다.")
@@ -138,74 +137,99 @@ def print_local_results(results: List[Dict]) -> None:
         print(f"     일치도: {book.get('match_score', 0)}/100")
 
 
-def cmd_search(args) -> None:
-    """config 우선순위에 따라 모든 소스 통합 검색 실행"""
-    query = args.query
-    max_results = args.max_results
+def print_ssafy_results(results: List[Dict]) -> None:
+    """싸피 e-book 검색 결과를 간단한 텍스트 형식으로 출력"""
+    if not results:
+        print("  검색 결과가 없습니다.")
+        return
 
+    for idx, book in enumerate(results, 1):
+        available = "대출가능" if book.get('available') else "대출중"
+        symbol = "✓" if book.get('available') else "✗"
+        print(f"\n  {idx}. {book.get('title', 'N/A')} - {available} {symbol}")
+        print(f"     저자: {book.get('author', 'N/A')}")
+        print(f"     출판사: {book.get('publisher', 'N/A')}")
+        if book.get('link'):
+            print(f"     바로가기: {book.get('link')}")
+
+
+async def cmd_search_async(query: str, max_results: int) -> None:
+    """config 우선순위에 따라 모든 소스 통합 검색 실행 (비동기)"""
     print(f"\n검색어: '{query}'")
 
     # 1단계: 알라딘에서 도서 정보 가져오기
-    book_info = select_book_from_aladin(query, max_results=10)
+    book_info = await select_book_from_aladin(query, max_results=10)
     if not book_info:
         print("\n검색이 취소되었거나 도서를 찾을 수 없습니다.")
         return
 
     isbn, title = book_info
 
-    # 2단계: config 로드 및 활성화된 소스 가져오기
+    # 2단계: config 로드 및 플러그인 레지스트리 생성
     config = load_config()
-    enabled_sources = get_enabled_sources_by_priority(config)
+    registry = PluginLoader.create_registry(config)
 
-    if not enabled_sources:
+    if len(registry) == 0:
         print("\nconfig.yaml에 활성화된 소스가 없습니다")
         return
 
-    # 3단계: 우선순위에 따라 각 소스 검색
+    # 3단계: 우선순위에 따라 각 플러그인 검색
     print("\n\n우선순위 순서로 검색 중...")
     print("=" * 60)
 
-    for source in enabled_sources:
-        source_name = source.get('name', 'Unknown')
-        priority = source.get('priority', '?')
+    enabled_plugins = registry.get_enabled_by_priority()
 
-        print(f"\n[우선순위 {priority}] {source_name}")
+    for plugin in enabled_plugins:
+        source_config = next(
+            (s for s in config.get('sources', []) if s.get('name') == plugin.name),
+            {}
+        )
+        priority = source_config.get('priority', '?')
+
+        print(f"\n[우선순위 {priority}] {plugin.name}")
 
         try:
-            if source_name == "내 보유 장서":
-                # 로컬 장서를 제목으로 검색 (원본 쿼리 먼저, 실패 시 알라딘 제목)
-                results = search_my_books(query, max_results=max_results)
-                if not results:
-                    # 알라딘 제목으로 재시도
-                    results = search_my_books(title, max_results=max_results)
-                print_local_results(results)
+            # 쿼리 타입 결정
+            query_to_use = query
+            query_type = QueryType.AUTO
 
-            elif source_name == "공공도서관":
-                # ISBN으로 도서관 검색
-                if isbn:
-                    # config.yaml에서 도서관 코드 목록 가져오기
-                    library_codes = source.get('libraries', [])
-                    if library_codes:
-                        results = asyncio.run(search_library(isbn, library_codes=library_codes))
-                        print_library_results(results)
-                    else:
-                        print("  건너뜀: config.yaml에 도서관 목록이 설정되지 않았습니다")
-                else:
-                    print("  건너뜀: ISBN을 사용할 수 없습니다")
+            # ISBN 지원 플러그인은 ISBN 우선 사용
+            if isbn and plugin.supports_isbn:
+                query_to_use = isbn
+                query_type = QueryType.ISBN
 
-            elif source_name == "알라딘 서점":
-                # 알라딘 구매 정보 표시 (이미 검색됨)
-                print(f"  구매 가능")
-                print(f"  바로가기: https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=Book&SearchWord={isbn}")
+            # 제목만 지원하는 플러그인
+            elif not plugin.supports_isbn and plugin.supports_title:
+                query_to_use = title if title else query
+                query_type = QueryType.TITLE
 
-            else:
-                # 아직 구현되지 않음
-                print(f"  준비 중 - 아직 구현되지 않았습니다")
+            # 쿼리 타입 검증
+            if not plugin.validate_query_type(query_type):
+                print(f"  건너뜀: {plugin.name}은(는) 해당 쿼리 타입을 지원하지 않습니다")
+                continue
+
+            # 검색 실행
+            results = await plugin.search(query_to_use, query_type, max_results)
+
+            # 결과가 없으면 제목으로 재시도 (일부 플러그인)
+            if not results and query_type == QueryType.ISBN and plugin.supports_title:
+                query_to_use = title if title else query
+                results = await plugin.search(query_to_use, QueryType.TITLE, max_results)
+
+            # 결과 포맷팅
+            plugin.format_results(results)
 
         except Exception as e:
             print(f"  오류: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     print("\n" + "=" * 60)
+
+
+def cmd_search(args) -> None:
+    """config 우선순위에 따라 모든 소스 통합 검색 실행"""
+    asyncio.run(cmd_search_async(args.query, args.max_results))
 
 
 def cmd_search_aladin(args) -> None:
@@ -217,7 +241,7 @@ def cmd_search_aladin(args) -> None:
     print("=" * 60)
 
     try:
-        results = search_aladin(query, max_results=max_results)
+        results = asyncio.run(search_aladin(query, max_results=max_results))
         print_aladin_results(results)
     except Exception as e:
         print(f"오류: {str(e)}")
@@ -258,6 +282,23 @@ def cmd_search_local(args) -> None:
     print("\n" + "=" * 60)
 
 
+def cmd_search_ssafy(args) -> None:
+    """싸피 e-book 단독 검색 실행"""
+    query = args.query
+    max_results = args.max_results
+
+    print(f"\n싸피 e-book 검색: '{query}'")
+    print("=" * 60)
+
+    try:
+        results = asyncio.run(search_ssafy_ebook(query, max_results=max_results))
+        print_ssafy_results(results)
+    except Exception as e:
+        print(f"오류: {str(e)}")
+
+    print("\n" + "=" * 60)
+
+
 def main() -> None:
     """CLI 메인 진입점"""
     # 환경변수 로드
@@ -274,6 +315,7 @@ def main() -> None:
   python -m src search-aladin "클린 코드"
   python -m src search-library 9788966262281
   python -m src search-local "클린 코드"
+  python -m src search-ssafy "파이썬"
         """
     )
 
@@ -305,6 +347,13 @@ def main() -> None:
     local_parser.add_argument('--max-results', type=int, default=5,
                              help='최대 결과 수 (기본값: 5)')
     local_parser.set_defaults(func=cmd_search_local)
+
+    # search-ssafy 명령어
+    ssafy_parser = subparsers.add_parser('search-ssafy', help='싸피 e-book 단독 검색')
+    ssafy_parser.add_argument('query', help='검색할 도서 제목 또는 ISBN')
+    ssafy_parser.add_argument('--max-results', type=int, default=5,
+                             help='최대 결과 수 (기본값: 5)')
+    ssafy_parser.set_defaults(func=cmd_search_ssafy)
 
     # 인자 파싱
     args = parser.parse_args()
