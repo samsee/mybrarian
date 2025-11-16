@@ -5,7 +5,8 @@
 """
 
 import os
-import requests
+import asyncio
+import httpx
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
@@ -27,7 +28,7 @@ class AladinAPI:
         if not self.api_key:
             raise ValueError("알라딘 API 키가 설정되지 않았습니다.")
 
-    def search_by_title(
+    async def search_by_title(
         self,
         query: str,
         max_results: int = 10,
@@ -57,19 +58,20 @@ class AladinAPI:
         }
 
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
 
-            # 디버깅용 출력 (필요시 주석 해제)
-            # print(f"Request URL: {response.url}")
-            # print(f"Response: {response.text[:500]}")
+                # 디버깅용 출력 (필요시 주석 해제)
+                # print(f"Request URL: {response.url}")
+                # print(f"Response: {response.text[:500]}")
 
-            return self._parse_search_response(response.text)
-        except requests.RequestException as e:
+                return self._parse_search_response(response.text)
+        except (httpx.HTTPError, httpx.RequestError) as e:
             print(f"알라딘 API 요청 실패: {e}")
             return []
 
-    def search_by_isbn(self, isbn: str) -> Optional[Dict]:
+    async def search_by_isbn(self, isbn: str) -> Optional[Dict]:
         """
         ISBN으로 도서 조회
 
@@ -90,11 +92,12 @@ class AladinAPI:
         }
 
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            results = self._parse_lookup_response(response.text)
-            return results[0] if results else None
-        except requests.RequestException as e:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                results = self._parse_lookup_response(response.text)
+                return results[0] if results else None
+        except (httpx.HTTPError, httpx.RequestError) as e:
             print(f"알라딘 ISBN 조회 실패: {e}")
             return None
 
@@ -176,7 +179,7 @@ class AladinAPI:
         return child.text if child is not None and child.text else ""
 
 
-def search_aladin(query: str, max_results: int = 10) -> List[Dict]:
+async def search_aladin(query: str, max_results: int = 10) -> List[Dict]:
     """
     알라딘에서 도서 검색 (편의 함수)
 
@@ -191,13 +194,13 @@ def search_aladin(query: str, max_results: int = 10) -> List[Dict]:
 
     # ISBN 형식인지 확인 (숫자와 하이픈만)
     if query.replace("-", "").isdigit():
-        result = api.search_by_isbn(query)
+        result = await api.search_by_isbn(query)
         return [result] if result else []
     else:
-        return api.search_by_title(query, max_results)
+        return await api.search_by_title(query, max_results)
 
 
-def extract_isbn(query: str) -> Optional[str]:
+async def extract_isbn(query: str) -> Optional[str]:
     """
     검색어에서 ISBN 추출 또는 제목으로 검색하여 ISBN 조회
 
@@ -215,20 +218,20 @@ def extract_isbn(query: str) -> Optional[str]:
         return cleaned
 
     # 2. 제목으로 검색하여 첫 번째 결과의 ISBN 추출
-    results = search_aladin(query, max_results=1)
+    results = await search_aladin(query, max_results=1)
     if results and results[0].get('isbn13'):
         return results[0]['isbn13']
 
     return None
 
 
-if __name__ == "__main__":
-    # 테스트
+async def main():
+    """테스트 함수"""
     print("=== 알라딘 도서 검색 테스트 ===\n")
 
     # 제목으로 검색
     print("1. 제목 검색: '개발자 온보딩 가이드'")
-    results = search_aladin("개발자 온보딩 가이드", max_results=3)
+    results = await search_aladin("개발자 온보딩 가이드", max_results=3)
     for i, book in enumerate(results, 1):
         print(f"\n{i}. {book['title']}")
         print(f"   저자: {book['author']}")
@@ -237,15 +240,19 @@ if __name__ == "__main__":
 
     # ISBN 추출
     print("\n\n2. ISBN 추출 테스트")
-    isbn = extract_isbn("개발자 온보딩 가이드")
+    isbn = await extract_isbn("개발자 온보딩 가이드")
     print(f"추출된 ISBN: {isbn}")
 
     # ISBN으로 직접 검색
     if isbn:
         print(f"\n\n3. ISBN 조회: {isbn}")
-        result = search_aladin(isbn)
+        result = await search_aladin(isbn)
         if result:
             book = result[0]
             print(f"제목: {book['title']}")
             print(f"저자: {book['author']}")
             print(f"출판사: {book['publisher']}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
