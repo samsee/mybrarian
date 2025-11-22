@@ -181,6 +181,8 @@ class LocalBooksPlugin(BasePlugin):
     name = "내 보유 장서"
     supports_isbn = False
     supports_title = True
+    cli_command = "search-local"
+    cli_help = "내 보유 장서 단독 검색"
 
     def __init__(self, config: Optional[Dict] = None):
         """
@@ -190,7 +192,12 @@ class LocalBooksPlugin(BasePlugin):
             config: 플러그인 설정 (config.yaml에서 로드)
         """
         super().__init__(config)
-        self.searcher = LocalBooksSearcher()
+
+        books_dir = None
+        if config and 'books_dir' in config:
+            books_dir = config['books_dir']
+
+        self.searcher = LocalBooksSearcher(books_dir=books_dir)
 
     async def search(
         self,

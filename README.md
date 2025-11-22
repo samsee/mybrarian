@@ -93,6 +93,9 @@ ONEDRIVE_BOOKS_PATH=C:/Users/YourUsername/OneDrive/Books
 RIDI_USERNAME=your_username
 RIDI_PASSWORD=your_password
 
+# 부커스 전자도서관 (기관용)
+BOOKERS_ORG_NAME=your_organization_name
+BOOKERS_ORG_CODE=your_organization_code
 BOOKERS_USERNAME=your_username
 BOOKERS_PASSWORD=your_password
 
@@ -128,6 +131,15 @@ REQUEST_TIMEOUT=10
 - 국립중앙도서관: `011001`
 - 서울도서관: `111314`
 - 경기도서관: `141674`
+
+#### 부커스 기관 코드 찾기 (선택사항)
+부커스는 기관용 전자도서관 서비스로, 기관 계정이 필요합니다.
+
+1. 부커스 로그인 페이지에서 기관명을 입력하면 자동완성 목록이 나타납니다
+2. 개발자 도구(F12)를 열고 Network 탭으로 이동
+3. 기관명을 입력하여 자동완성 목록에서 선택
+4. Network 탭에서 로그인 요청을 확인하여 `um_uis_code` 값을 찾습니다
+5. 찾은 코드를 `.env` 파일의 `BOOKERS_ORG_CODE`에 입력
 
 ### 3. 우선순위 설정
 
@@ -291,7 +303,7 @@ curl -X PUT "http://localhost:8000/config" \
   }'
 ```
 
-### 3. CLI 사용 (개발 예정)
+### 3. CLI 사용
 
 ```bash
 # 도서 검색

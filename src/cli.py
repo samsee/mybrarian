@@ -12,7 +12,7 @@ from typing import List, Dict, Optional, Tuple
 from dotenv import load_dotenv
 
 from src.sources.aladin import search_aladin, extract_isbn
-from src.plugins import PluginLoader, PluginRegistry, QueryType
+from src.plugins import PluginLoader, PluginRegistry, QueryType, BasePlugin
 
 
 def load_config() -> Dict:
@@ -97,60 +97,28 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
         return None
 
 
-def print_aladin_results(results: List[Dict]) -> None:
-    """알라딘 검색 결과를 간단한 텍스트 형식으로 출력"""
-    if not results:
-        print("  검색 결과가 없습니다.")
-        return
+async def cmd_plugin_search(plugin: BasePlugin, query: str, max_results: int) -> None:
+    """
+    플러그인 기반 검색 실행 (범용 핸들러)
 
-    for idx, book in enumerate(results, 1):
-        print(f"\n  {idx}. {book.get('title', 'N/A')}")
-        print(f"     저자: {book.get('author', 'N/A')}")
-        print(f"     출판사: {book.get('publisher', 'N/A')}")
-        print(f"     ISBN13: {book.get('isbn13', 'N/A')}")
-        if book.get('priceSales'):
-            print(f"     가격: {book.get('priceSales', 'N/A')}원")
+    Args:
+        plugin: 검색할 플러그인 인스턴스
+        query: 검색어
+        max_results: 최대 결과 수
+    """
+    print(f"\n{plugin.name} 검색: '{query}'")
+    print("=" * 60)
 
+    try:
+        query_type = plugin.detect_query_type(query)
+        results = await plugin.search(query, query_type, max_results)
+        plugin.format_results(results)
+    except Exception as e:
+        print(f"오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
-def print_library_results(results: List[Dict]) -> None:
-    """도서관 검색 결과를 간단한 텍스트 형식으로 출력"""
-    if not results:
-        print("  검색 결과가 없습니다.")
-        return
-
-    for idx, lib in enumerate(results, 1):
-        available = "대출가능" if lib.get('available') else "대출중"
-        symbol = "✓" if lib.get('available') else "✗"
-        print(f"  {idx}. {lib.get('library_name', 'N/A')} - {available} {symbol}")
-
-
-def print_local_results(results: List[Dict]) -> None:
-    """로컬 장서 검색 결과를 간단한 텍스트 형식으로 출력"""
-    if not results:
-        print("  검색 결과가 없습니다.")
-        return
-
-    for idx, book in enumerate(results, 1):
-        print(f"\n  {idx}. {book.get('file_name', 'N/A')}")
-        print(f"     경로: {book.get('file_path', 'N/A')}")
-        print(f"     크기: {book.get('size_mb', 0):.2f} MB")
-        print(f"     일치도: {book.get('match_score', 0)}/100")
-
-
-def print_ssafy_results(results: List[Dict]) -> None:
-    """싸피 e-book 검색 결과를 간단한 텍스트 형식으로 출력"""
-    if not results:
-        print("  검색 결과가 없습니다.")
-        return
-
-    for idx, book in enumerate(results, 1):
-        available = "대출가능" if book.get('available') else "대출중"
-        symbol = "✓" if book.get('available') else "✗"
-        print(f"\n  {idx}. {book.get('title', 'N/A')} - {available} {symbol}")
-        print(f"     저자: {book.get('author', 'N/A')}")
-        print(f"     출판사: {book.get('publisher', 'N/A')}")
-        if book.get('link'):
-            print(f"     바로가기: {book.get('link')}")
+    print("\n" + "=" * 60)
 
 
 async def cmd_search_async(query: str, max_results: int) -> None:
@@ -200,7 +168,7 @@ async def cmd_search_async(query: str, max_results: int) -> None:
 
             # 제목만 지원하는 플러그인
             elif not plugin.supports_isbn and plugin.supports_title:
-                query_to_use = title if title else query
+                query_to_use = query
                 query_type = QueryType.TITLE
 
             # 쿼리 타입 검증
@@ -232,77 +200,52 @@ def cmd_search(args) -> None:
     asyncio.run(cmd_search_async(args.query, args.max_results))
 
 
-def cmd_search_aladin(args) -> None:
-    """알라딘 단독 검색 실행"""
-    query = args.query
-    max_results = args.max_results
+def create_plugin_command_handler(plugin: BasePlugin):
+    """
+    플러그인에 대한 CLI 명령어 핸들러를 동적으로 생성
 
-    print(f"\n알라딘 검색: '{query}'")
-    print("=" * 60)
+    Args:
+        plugin: 플러그인 인스턴스
 
-    try:
-        results = asyncio.run(search_aladin(query, max_results=max_results))
-        print_aladin_results(results)
-    except Exception as e:
-        print(f"오류: {str(e)}")
-
-    print("\n" + "=" * 60)
-
-
-def cmd_search_library(args) -> None:
-    """도서관 단독 검색 실행"""
-    isbn = args.isbn
-
-    print(f"\n도서관 검색 (ISBN: {isbn})")
-    print("=" * 60)
-
-    try:
-        results = asyncio.run(search_library(isbn))
-        print_library_results(results)
-    except Exception as e:
-        print(f"오류: {str(e)}")
-
-    print("\n" + "=" * 60)
+    Returns:
+        명령어 핸들러 함수
+    """
+    def handler(args):
+        query = args.query
+        max_results = args.max_results
+        asyncio.run(cmd_plugin_search(plugin, query, max_results))
+    return handler
 
 
-def cmd_search_local(args) -> None:
-    """로컬 장서 단독 검색 실행"""
-    query = args.query
-    max_results = args.max_results
+def register_plugin_commands(subparsers, registry: PluginRegistry) -> None:
+    """
+    레지스트리의 모든 플러그인에 대해 CLI 서브커맨드를 자동 등록
 
-    print(f"\n내 보유 장서 검색: '{query}'")
-    print("=" * 60)
+    Args:
+        subparsers: argparse subparsers 객체
+        registry: 플러그인 레지스트리
+    """
+    for plugin in registry.get_all():
+        if not plugin.cli_command:
+            continue
 
-    try:
-        results = search_my_books(query, max_results=max_results)
-        print_local_results(results)
-    except Exception as e:
-        print(f"오류: {str(e)}")
+        cmd_help = plugin.cli_help or f"{plugin.name} 단독 검색"
 
-    print("\n" + "=" * 60)
-
-
-def cmd_search_ssafy(args) -> None:
-    """싸피 e-book 단독 검색 실행"""
-    query = args.query
-    max_results = args.max_results
-
-    print(f"\n싸피 e-book 검색: '{query}'")
-    print("=" * 60)
-
-    try:
-        results = asyncio.run(search_ssafy_ebook(query, max_results=max_results))
-        print_ssafy_results(results)
-    except Exception as e:
-        print(f"오류: {str(e)}")
-
-    print("\n" + "=" * 60)
+        plugin_parser = subparsers.add_parser(plugin.cli_command, help=cmd_help)
+        plugin_parser.add_argument('query', help='검색할 도서 제목 또는 ISBN')
+        plugin_parser.add_argument('--max-results', type=int, default=5,
+                                   help='최대 결과 수 (기본값: 5)')
+        plugin_parser.set_defaults(func=create_plugin_command_handler(plugin))
 
 
 def main() -> None:
     """CLI 메인 진입점"""
     # 환경변수 로드
     load_dotenv()
+
+    # 설정 파일 로드 및 플러그인 레지스트리 생성
+    config = load_config()
+    registry = PluginLoader.create_registry(config)
 
     # 메인 파서 생성
     parser = argparse.ArgumentParser(
@@ -312,8 +255,6 @@ def main() -> None:
 사용 예시:
   python -m src search "클린 코드"
   python -m src search 9788966262281
-  python -m src search-aladin "클린 코드"
-  python -m src search-library 9788966262281
   python -m src search-local "클린 코드"
   python -m src search-ssafy "파이썬"
         """
@@ -329,31 +270,8 @@ def main() -> None:
                               help='소스당 최대 결과 수 (기본값: 5)')
     search_parser.set_defaults(func=cmd_search)
 
-    # search-aladin 명령어
-    aladin_parser = subparsers.add_parser('search-aladin', help='알라딘 단독 검색')
-    aladin_parser.add_argument('query', help='검색할 도서 제목 또는 ISBN')
-    aladin_parser.add_argument('--max-results', type=int, default=5,
-                              help='최대 결과 수 (기본값: 5)')
-    aladin_parser.set_defaults(func=cmd_search_aladin)
-
-    # search-library 명령어
-    library_parser = subparsers.add_parser('search-library', help='공공도서관 단독 검색')
-    library_parser.add_argument('isbn', help='검색할 ISBN13')
-    library_parser.set_defaults(func=cmd_search_library)
-
-    # search-local 명령어
-    local_parser = subparsers.add_parser('search-local', help='내 보유 장서 단독 검색')
-    local_parser.add_argument('query', help='검색할 도서 제목')
-    local_parser.add_argument('--max-results', type=int, default=5,
-                             help='최대 결과 수 (기본값: 5)')
-    local_parser.set_defaults(func=cmd_search_local)
-
-    # search-ssafy 명령어
-    ssafy_parser = subparsers.add_parser('search-ssafy', help='싸피 e-book 단독 검색')
-    ssafy_parser.add_argument('query', help='검색할 도서 제목 또는 ISBN')
-    ssafy_parser.add_argument('--max-results', type=int, default=5,
-                             help='최대 결과 수 (기본값: 5)')
-    ssafy_parser.set_defaults(func=cmd_search_ssafy)
+    # 플러그인 기반 명령어 자동 등록
+    register_plugin_commands(subparsers, registry)
 
     # 인자 파싱
     args = parser.parse_args()

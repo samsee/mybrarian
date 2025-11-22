@@ -26,21 +26,17 @@ class LibraryAPI:
         """
         Args:
             api_key: 도서관 정보나루 API 키 (없으면 환경변수에서 로드)
-            library_codes: 검색할 도서관 코드 리스트 (없으면 환경변수에서 로드)
+            library_codes: 검색할 도서관 코드 리스트 (config.yaml에서 전달받음)
         """
         self.api_key = api_key or os.getenv("LIBRARY_API_KEY")
         if not self.api_key:
             raise ValueError("도서관 정보나루 API 키가 설정되지 않았습니다.")
 
-        # 도서관 코드 로드 (콤마로 구분된 문자열)
-        if library_codes:
-            self.library_codes = library_codes
-        else:
-            codes_str = os.getenv("TARGET_LIBRARIES", "")
-            self.library_codes = [code.strip() for code in codes_str.split(",") if code.strip()]
+        # 도서관 코드 설정 (config.yaml에서 전달받음)
+        self.library_codes = library_codes or []
 
         if not self.library_codes:
-            raise ValueError("검색할 도서관 코드가 설정되지 않았습니다.")
+            raise ValueError("검색할 도서관 코드가 설정되지 않았습니다. config.yaml의 libraries를 확인하세요.")
 
         # 도서관 이름 캐시
         self.library_names_cache = {}
@@ -220,6 +216,8 @@ class LibraryPlugin(BasePlugin):
     name = "공공도서관"
     supports_isbn = True
     supports_title = False
+    cli_command = "search-library"
+    cli_help = "공공도서관 단독 검색"
 
     def __init__(self, config: Optional[Dict] = None):
         """

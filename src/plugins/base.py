@@ -26,11 +26,15 @@ class BasePlugin(ABC):
     - name: Human-readable name of the source
     - supports_isbn: Whether the plugin can search by ISBN
     - supports_title: Whether the plugin can search by title
+    - cli_command: CLI command name (e.g., "search-local" for "python -m src search-local")
+    - cli_help: Help text for CLI command
     """
 
     name: str = "Unknown Plugin"
     supports_isbn: bool = False
     supports_title: bool = False
+    cli_command: Optional[str] = None
+    cli_help: Optional[str] = None
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """

@@ -68,3 +68,6 @@ my_books_index.json
 .claude
 CLAUDE.md
 init.md
+
+# SSAFY 관련 (기관 특정)
+src/sources/ssafy_ebook.py

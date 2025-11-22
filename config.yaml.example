@@ -1,27 +1,30 @@
+# Application Settings
+app_settings:
+  debug: false
+  log_level: INFO
+
+# Search Sources
 sources:
   - name: "내 보유 장서"
     module: "src.sources.local_books"
     class: "LocalBooksPlugin"
     priority: 1
     enabled: true
+    books_dir: "C:/Users/YourUsername/OneDrive/Books"  # 로컬 장서 디렉토리
   - name: "공공도서관"
     module: "src.sources.library"
     class: "LibraryPlugin"
     priority: 2
     enabled: true
     libraries:
-      - "LIB001"  # 도서관 코드 (예: 111003 - 국립중앙도서관)
-      - "LIB002"
+      - "111003"  # 국립중앙도서관
+      - "111030"  # 서울도서관
+      # 더 많은 도서관 코드: https://librarian.nl.go.kr/LI/contents/L10404000000.do
   - name: "리디북스 셀렉트"
     module: "src.sources.ridibooks"
     class: "RidibooksPlugin"
     priority: 3
     enabled: false
-  - name: "싸피 e-book"
-    module: "src.sources.ssafy_ebook"
-    class: "SSAFYPlugin"
-    priority: 4
-    enabled: true
   - name: "부커스"
     module: "src.sources.bookers"
     class: "BookersPlugin"

@@ -237,6 +237,8 @@ class AladinPlugin(BasePlugin):
     name = "알라딘 서점"
     supports_isbn = True
     supports_title = True
+    cli_command = "search-aladin"
+    cli_help = "알라딘 서점 단독 검색"
 
     def __init__(self, config: Optional[Dict] = None):
         """
