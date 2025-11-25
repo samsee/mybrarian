@@ -168,7 +168,7 @@ async def cmd_search_async(query: str, max_results: int) -> None:
 
             # 제목만 지원하는 플러그인
             elif not plugin.supports_isbn and plugin.supports_title:
-                query_to_use = query
+                query_to_use = title if title else query
                 query_type = QueryType.TITLE
 
             # 쿼리 타입 검증
