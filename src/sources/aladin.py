@@ -120,8 +120,33 @@ class AladinAPI:
 
             # 네임스페이스를 사용하여 item 찾기
             for item in root.findall('.//ns:item', namespace):
+                full_title = self._get_text_ns(item, 'title', namespace)
+
+                # subInfo에서 subTitle 추출 (ItemLookUp API에서만 제공)
+                sub_info = item.find('ns:subInfo', namespace)
+                sub_title = ""
+                if sub_info is not None:
+                    sub_title = self._get_text_ns(sub_info, 'subTitle', namespace)
+
+                # 메인 제목 계산
+                if sub_title and full_title.endswith(sub_title):
+                    # subTitle이 있고 전체 제목이 부제목으로 끝나면 제거
+                    main_title = full_title[:-len(sub_title)].rstrip(' -').strip()
+                elif sub_title:
+                    # subTitle이 있지만 title에서 찾기 어려운 경우
+                    main_title = full_title.split(' - ')[0].strip()
+                elif ' - ' in full_title:
+                    # subTitle이 없지만 " - "가 있으면 (ItemSearch API 폴백)
+                    # 첫 번째 " - "를 기준으로 분리 (부제목은 " - "로 시작)
+                    main_title = full_title.split(' - ', 1)[0].strip()
+                else:
+                    # " - "도 없으면 전체가 메인 제목
+                    main_title = full_title
+
                 book_info = {
-                    'title': self._get_text_ns(item, 'title', namespace),
+                    'title': full_title,  # 전체 제목 (기존 호환성)
+                    'mainTitle': main_title,  # 부제목 제외한 메인 제목
+                    'subTitle': sub_title,  # 부제목 (API 제공)
                     'author': self._get_text_ns(item, 'author', namespace),
                     'publisher': self._get_text_ns(item, 'publisher', namespace),
                     'pubDate': self._get_text_ns(item, 'pubDate', namespace),
@@ -179,6 +204,7 @@ class AladinAPI:
         """
         child = element.find(f"ns:{tag}", namespace)
         return child.text if child is not None and child.text else ""
+
 
 
 async def search_aladin(query: str, max_results: int = 10) -> List[Dict]:

@@ -36,10 +36,12 @@ def get_enabled_sources_by_priority(config: Dict) -> List[Dict]:
     return sorted(enabled_sources, key=lambda x: x.get('priority', 999))
 
 
-async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional[Tuple[str, str]]:
+async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional[Dict]:
     """
     알라딘에서 도서를 검색하고 사용자가 선택
-    (isbn13, title) 튜플 반환, 취소 시 None 반환
+
+    Returns:
+        선택된 도서 정보 dict (isbn, title, mainTitle 포함) 또는 None
     """
     print("\n[알라딘 검색 - 도서 정보 확인 중]")
     print("=" * 60)
@@ -58,7 +60,11 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
             title = book.get('title', 'N/A')
             print(f"\n찾은 도서: {title}")
             print(f"ISBN: {isbn}")
-            return (isbn, title)
+            return {
+                'isbn': isbn,
+                'title': title,
+                'mainTitle': book.get('mainTitle', title),
+            }
 
         # 여러 결과가 있으면 사용자가 선택
         print(f"\n{len(results)}개의 검색 결과를 찾았습니다:\n")
@@ -83,7 +89,11 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
                     title = selected.get('title', 'N/A')
                     print(f"\n선택한 도서: {title}")
                     print(f"ISBN: {isbn}")
-                    return (isbn, title)
+                    return {
+                        'isbn': isbn,
+                        'title': title,
+                        'mainTitle': selected.get('mainTitle', title),
+                    }
                 else:
                     print(f"0부터 {len(results)} 사이의 숫자를 입력하세요")
             except ValueError:
@@ -131,7 +141,9 @@ async def cmd_search_async(query: str, max_results: int) -> None:
         print("\n검색이 취소되었거나 도서를 찾을 수 없습니다.")
         return
 
-    isbn, title = book_info
+    isbn = book_info['isbn']
+    title = book_info['title']
+    main_title = book_info.get('mainTitle', title)  # 부제목 제외한 메인 제목
 
     # 2단계: config 로드 및 플러그인 레지스트리 생성
     config = load_config()
@@ -168,7 +180,8 @@ async def cmd_search_async(query: str, max_results: int) -> None:
 
             # 제목만 지원하는 플러그인
             elif not plugin.supports_isbn and plugin.supports_title:
-                query_to_use = title if title else query
+                # 알라딘에서 파싱한 메인 제목 사용 (부제목 제외)
+                query_to_use = main_title if main_title else query
                 query_type = QueryType.TITLE
 
             # 쿼리 타입 검증
@@ -181,7 +194,7 @@ async def cmd_search_async(query: str, max_results: int) -> None:
 
             # 결과가 없으면 제목으로 재시도 (일부 플러그인)
             if not results and query_type == QueryType.ISBN and plugin.supports_title:
-                query_to_use = title if title else query
+                query_to_use = main_title if main_title else query
                 results = await plugin.search(query_to_use, QueryType.TITLE, max_results)
 
             # 결과 포맷팅
