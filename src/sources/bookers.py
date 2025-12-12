@@ -23,12 +23,32 @@ class BookersAPI:
     MAIN_URL = f"{BASE_URL}/front/home/main.do"
     SEARCH_URL = f"{BASE_URL}/front/home/searchList.do"
 
-    def __init__(self):
-        """초기화"""
-        self.org_name = os.getenv("BOOKERS_ORG_NAME", "")
-        self.org_code = os.getenv("BOOKERS_ORG_CODE", "")  # um_uis_code
-        self.username = os.getenv("BOOKERS_USERNAME", "")
-        self.password = os.getenv("BOOKERS_PASSWORD", "")
+    def __init__(self, account_id: str = "default"):
+        """
+        초기화
+
+        Args:
+            account_id: 계정 식별자 (예: "ssafy", "company")
+                       "default"면 기존 환경변수 사용 (BOOKERS_ORG_NAME 등)
+        """
+        self.account_id = account_id
+
+        if account_id == "default":
+            # 기존 방식 (하위 호환성)
+            self.account_name = "부커스"
+            self.org_name = os.getenv("BOOKERS_ORG_NAME", "")
+            self.org_code = os.getenv("BOOKERS_ORG_CODE", "")
+            self.username = os.getenv("BOOKERS_USERNAME", "")
+            self.password = os.getenv("BOOKERS_PASSWORD", "")
+        else:
+            # 새 방식: BOOKERS_{ACCOUNT_ID}_{FIELD} 형식
+            prefix = f"BOOKERS_{account_id.upper()}_"
+            self.account_name = os.getenv(f"{prefix}NAME", account_id)
+            self.org_name = os.getenv(f"{prefix}ORG_NAME", "")
+            self.org_code = os.getenv(f"{prefix}ORG_CODE", "")
+            self.username = os.getenv(f"{prefix}USERNAME", "")
+            self.password = os.getenv(f"{prefix}PASSWORD", "")
+
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
         self.is_logged_in = False
@@ -54,27 +74,17 @@ class BookersAPI:
             await self.playwright.stop()
             self.playwright = None
 
-    async def login(self, headless: bool = True) -> bool:
+    async def _auto_login(self) -> bool:
         """
-        부커스 로그인
-
-        Args:
-            headless: 브라우저를 헤드리스 모드로 실행할지 여부
+        자동 로그인 시도
 
         Returns:
             로그인 성공 여부
         """
-        if self.is_logged_in:
-            return True
-
         if not all([self.org_name, self.org_code, self.username, self.password]):
-            print("부커스 로그인 정보가 설정되지 않았습니다.")
-            print(".env 파일에 BOOKERS_ORG_NAME, BOOKERS_ORG_CODE, BOOKERS_USERNAME, BOOKERS_PASSWORD를 설정하세요.")
             return False
 
         try:
-            await self._init_browser(headless=headless)
-
             # 로그인 페이지로 이동
             await self.page.goto(self.LOGIN_URL, wait_until="networkidle", timeout=60000)
             await asyncio.sleep(1)
@@ -100,22 +110,43 @@ class BookersAPI:
             await asyncio.sleep(5)
             await self.page.wait_for_load_state("networkidle", timeout=60000)
 
-            # 로그인 성공 확인 (URL 확인 및 페이지 내용 확인)
+            # 로그인 성공 확인
             current_url = self.page.url
-
-            # 로그인 실패 시 페이지에 남아있거나 login.do가 포함됨
             if "login.do" in current_url:
-                # 혹시 에러 메시지가 있는지 확인
-                error_msg = await self.page.locator(".error, .alert").inner_text() if await self.page.locator(".error, .alert").count() > 0 else ""
-                print(f"부커스 로그인 실패: {error_msg if error_msg else 'URL이 여전히 login.do'}")
                 return False
 
-            self.is_logged_in = True
-            print("부커스 로그인 성공")
+            print(f"[{self.account_name}] 자동 로그인 성공")
             return True
 
         except Exception as e:
-            print(f"부커스 로그인 중 오류: {e}")
+            print(f"[{self.account_name}] 자동 로그인 실패: {e}")
+            return False
+
+    async def login(self, headless: bool = True) -> bool:
+        """
+        부커스 자동 로그인
+
+        Args:
+            headless: 브라우저를 헤드리스 모드로 실행할지 여부
+
+        Returns:
+            로그인 성공 여부
+        """
+        if self.is_logged_in:
+            return True
+
+        try:
+            await self._init_browser(headless=headless)
+
+            if await self._auto_login():
+                self.is_logged_in = True
+                return True
+
+            print(f"\n[{self.account_name}] 로그인 실패: 환경변수를 확인하세요.")
+            return False
+
+        except Exception as e:
+            print(f"[{self.account_name}] 로그인 중 오류: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -324,7 +355,24 @@ class BookersPlugin(BasePlugin):
             config: 플러그인 설정 (config.yaml에서 로드)
         """
         super().__init__(config)
-        self.api = BookersAPI()
+
+        # 여러 계정 생성
+        self.apis = []
+        account_ids = config.get('accounts', []) if config else []
+
+        # 환경변수 fallback (하위 호환성)
+        if not account_ids:
+            # 기존 BOOKERS_ORG_NAME이 있으면 default 계정 사용
+            if os.getenv("BOOKERS_ORG_NAME"):
+                account_ids = ["default"]
+
+        if not account_ids:
+            print("Warning: 부커스 계정이 설정되지 않았습니다.")
+            return
+
+        for account_id in account_ids:
+            api = BookersAPI(account_id)
+            self.apis.append(api)
 
     async def search(
         self,
@@ -333,7 +381,7 @@ class BookersPlugin(BasePlugin):
         max_results: int = 10
     ) -> List[Dict]:
         """
-        부커스 전자도서관에서 도서 검색
+        부커스 전자도서관에서 도서 검색 (여러 계정에서 병렬 검색)
 
         Args:
             query: 검색어 (ISBN 또는 제목)
@@ -343,18 +391,47 @@ class BookersPlugin(BasePlugin):
         Returns:
             검색 결과 리스트
         """
-        try:
-            if query_type == QueryType.AUTO:
-                query_type = self.detect_query_type(query)
+        if not self.apis:
+            return []
 
+        if query_type == QueryType.AUTO:
+            query_type = self.detect_query_type(query)
+
+        # 모든 계정에서 병렬 검색
+        tasks = []
+        for api in self.apis:
             if query_type == QueryType.ISBN:
-                result = await self.api.search_by_isbn(query)
-                return [result] if result else []
+                tasks.append(api.search_by_isbn(query))
             else:
-                return await self.api.search_by_title(query, max_results)
-        finally:
-            # 검색 완료 후 브라우저 종료
-            await self.api._close_browser()
+                tasks.append(api.search_by_title(query, max_results))
+
+        results_per_account = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 결과 통합
+        all_results = []
+        for api, results in zip(self.apis, results_per_account):
+            if isinstance(results, Exception):
+                print(f"[{api.account_name}] 검색 실패: {results}")
+                continue
+
+            if results is None:
+                continue
+
+            # ISBN 검색 결과가 단일 dict인 경우 리스트로 변환
+            if isinstance(results, dict):
+                results = [results]
+
+            # 각 결과에 계정 정보 추가
+            for result in results:
+                result['bookers_account'] = api.account_name
+                all_results.append(result)
+
+        return all_results
+
+    async def close(self):
+        """모든 계정의 브라우저 종료"""
+        for api in self.apis:
+            await api._close_browser()
 
     def format_results(self, results: List[Dict]) -> None:
         """
@@ -368,8 +445,10 @@ class BookersPlugin(BasePlugin):
             return
 
         for idx, book in enumerate(results, 1):
+            account_name = book.get('bookers_account', 'N/A')
             file_type = f" [{book.get('file_type')}]" if book.get('file_type') else ""
             print(f"\n  {idx}. {book.get('title', 'N/A')}{file_type} - 이용가능 ✓")
+            print(f"     계정: {account_name}")
             print(f"     저자: {book.get('author', 'N/A')}")
             print(f"     출판사: {book.get('publisher', 'N/A')}")
             if book.get('link'):
