@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10, <3.13"
 
 [[package]]
@@ -551,6 +551,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "beautifulsoup4" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "lxml" },
     { name = "playwright" },
     { name = "pydantic" },
@@ -574,6 +575,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.10.0" },
     { name = "beautifulsoup4", specifier = "==4.12.3" },
     { name = "fastapi", specifier = "==0.109.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = "==0.26.0" },
     { name = "lxml", specifier = "==5.1.0" },
     { name = "playwright", specifier = "==1.41.0" },

@@ -200,6 +200,10 @@ async def cmd_search_async(query: str, max_results: int) -> None:
             # 결과 포맷팅
             plugin.format_results(results)
 
+            # 추가: 플러그인 정리 (브라우저 등 리소스 해제)
+            if hasattr(plugin, 'close'):
+                await plugin.close()
+
         except Exception as e:
             print(f"  오류: {str(e)}")
             import traceback

@@ -20,6 +20,7 @@ ISBN 또는 도서명으로 여러 소스를 통합 검색하여 원하는 책�
 ## 🛠️ 기술 스택
 
 - **언어**: Python 3.10+
+- **패키지 관리**: uv
 - **프레임워크**: FastAPI, Uvicorn
 - **라이브러리**:
   - `requests`, `beautifulsoup4` - 웹 스크래핑
@@ -37,24 +38,27 @@ git clone https://github.com/yourusername/mybrarian.git
 cd mybrarian
 ```
 
-### 2. 가상환경 생성 및 활성화
+### 2. uv 설치 (선택사항)
+
+이 프로젝트는 `uv`를 패키지 관리자로 사용합니다. uv가 설치되어 있지 않다면 먼저 설치하세요.
 
 **Windows:**
-```bash
-python -m venv venv
-venv\Scripts\activate
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **macOS/Linux:**
 ```bash
-python -m venv venv
-source venv/bin/activate
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### 3. 필요한 라이브러리 설치
+자세한 설치 방법은 [uv 공식 문서](https://docs.astral.sh/uv/getting-started/installation/)를 참고하세요.
+
+### 3. 의존성 설치
 
 ```bash
-pip install -r requirements.txt
+# 가상환경 생성 및 의존성 설치 (한 번에)
+uv sync
 ```
 
 ### 4. Playwright 브라우저 설치
@@ -62,7 +66,7 @@ pip install -r requirements.txt
 일부 소스(리디북스, 부커스 등)는 동적 웹페이지를 처리하기 위해 Playwright가 필요합니다.
 
 ```bash
-playwright install chromium
+uv run playwright install chromium
 ```
 
 ## ⚙️ 설정 방법
@@ -189,7 +193,7 @@ cache:
 ### 1. Web API 서버 실행
 
 ```bash
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 서버가 실행되면 다음 주소로 접속할 수 있습니다:
@@ -307,13 +311,25 @@ curl -X PUT "http://localhost:8000/config" \
 
 ```bash
 # 도서 검색
-python -m src.cli search "클린코드"
+uv run mybrarian search "클린코드"
 
 # ISBN으로 검색
-python -m src.cli search 9788966261161
+uv run mybrarian search 9788966261161
 
-# 특정 소스만 검색
-python -m src.cli search "클린코드" --sources library,aladin
+# 특정 소스만 검색 (알라딘)
+uv run mybrarian search-aladin "클린코드"
+
+# 특정 소스만 검색 (공공도서관)
+uv run mybrarian search-library "클린코드"
+
+# 특정 소스만 검색 (내 보유 장서)
+uv run mybrarian search-local "클린코드"
+
+# 또는 가상환경 활성화 후 실행
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # macOS/Linux
+
+mybrarian search "클린코드"
 ```
 
 ## 📂 프로젝트 구조
@@ -328,17 +344,18 @@ mybrarian/
 │   ├── cli.py               # CLI 인터페이스
 │   └── sources/             # 검색 소스 모듈
 │       ├── __init__.py
-│       ├── aladin.py        # 알라딘 API
-│       ├── library.py       # 공공도서관
-│       ├── ridibooks.py     # 리디북스 셀렉트
-│       ├── bookers.py       # 부커스
-│       ├── google_play.py   # 구글 플레이북
-│       └── my_books.py      # 보유 장서
+│       ├── aladin.py            # 알라딘 API
+│       ├── library.py           # 공공도서관
+│       ├── ridibooks_select.py  # 리디북스 셀렉트
+│       ├── bookers.py           # 부커스
+│       ├── google_play.py       # 구글 플레이북
+│       └── my_books.py          # 보유 장서
 ├── tests/                   # 테스트 코드
 ├── .env.example             # 환경변수 템플릿
 ├── .gitignore
 ├── config.yaml.example      # 설정 파일 템플릿
-├── requirements.txt
+├── pyproject.toml           # 프로젝트 설정 및 의존성
+├── uv.lock                  # 의존성 잠금 파일
 ├── CLAUDE.md                # 개발 진행 상황
 └── README.md
 ```
@@ -378,13 +395,13 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 ```bash
 # 전체 테스트 실행
-pytest
+uv run pytest
 
 # 특정 모듈 테스트
-pytest tests/test_aladin.py
+uv run pytest tests/test_aladin.py
 
 # 커버리지 확인
-pytest --cov=src tests/
+uv run pytest --cov=src tests/
 ```
 
 ## 🐛 트러블슈팅
@@ -395,7 +412,20 @@ pytest --cov=src tests/
 
 **해결:**
 ```bash
-playwright install chromium
+uv run playwright install chromium
+```
+
+### ModuleNotFoundError 오류
+
+**문제:** `ModuleNotFoundError: No module named 'xxx'`
+
+**해결:**
+```bash
+# 의존성 재설치
+uv sync
+
+# 특정 패키지 추가
+uv add <package-name>
 ```
 
 ### API 키 오류
