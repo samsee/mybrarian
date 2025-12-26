@@ -13,6 +13,12 @@ from dotenv import load_dotenv
 
 from src.sources.aladin import search_aladin, extract_isbn
 from src.plugins import PluginLoader, PluginRegistry, QueryType, BasePlugin
+from src.logger import setup_logger
+
+logger = setup_logger(__name__)
+
+# 알라딘 검색 결과 캐시 (ISBN을 키로 사용)
+_aladin_cache: Dict[str, Dict] = {}
 
 # 알라딘 검색 결과 캐시 (ISBN을 키로 사용)
 _aladin_cache: Dict[str, Dict] = {}
@@ -42,12 +48,20 @@ def load_config() -> Dict:
     config_path = Path(__file__).parent.parent / "config.yaml"
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+
+            # 로그 레벨 설정 적용
+            log_level = config.get('app_settings', {}).get('log_level', 'INFO')
+            logger.setLevel(log_level)
+            for handler in logger.handlers:
+                handler.setLevel(log_level)
+
+            return config
     except FileNotFoundError:
-        print(f"경고: config.yaml 파일을 찾을 수 없습니다: {config_path}")
+        logger.warning(f"config.yaml 파일을 찾을 수 없습니다: {config_path}")
         return {'sources': []}
     except yaml.YAMLError as e:
-        print(f"경고: config.yaml 파싱 오류: {e}")
+        logger.warning(f"config.yaml 파싱 오류: {e}")
         return {'sources': []}
 
 
@@ -65,14 +79,14 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
     Returns:
         선택된 도서 정보 dict (isbn, title, mainTitle 포함) 또는 None
     """
-    print("\n[알라딘 검색 - 도서 정보 확인 중]")
+    logger.info("[알라딘 검색 - 도서 정보 확인 중]")
     print("=" * 60)
 
     try:
         results = await search_aladin(query, max_results=max_results)
 
         if not results:
-            print("알라딘에서 검색 결과를 찾을 수 없습니다.")
+            logger.info("알라딘에서 검색 결과를 찾을 수 없습니다.")
             return None
 
         if len(results) == 1:
@@ -106,13 +120,14 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
                 choice_num = int(choice)
 
                 if choice_num == 0:
-                    print("검색을 취소했습니다.")
+                    logger.info("검색을 취소했습니다.")
                     return None
 
                 if 1 <= choice_num <= len(results):
                     selected = results[choice_num - 1]
                     isbn = selected.get('isbn13') or selected.get('isbn')
                     title = selected.get('title', 'N/A')
+                    logger.info(f"선택한 도서: {title} (ISBN: {isbn})")
                     print(f"\n선택한 도서: {title}")
                     print(f"ISBN: {isbn}")
 
@@ -129,10 +144,12 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
             except ValueError:
                 print("올바른 숫자를 입력하세요")
             except (EOFError, KeyboardInterrupt):
+                logger.info("검색을 취소했습니다.")
                 print("\n검색을 취소했습니다.")
                 return None
 
     except Exception as e:
+        logger.error(f"알라딘 검색 오류: {str(e)}", exc_info=True)
         print(f"알라딘 검색 오류: {str(e)}")
         return None
 
@@ -146,6 +163,7 @@ async def cmd_plugin_search(plugin: BasePlugin, query: str, max_results: int) ->
         query: 검색어
         max_results: 최대 결과 수
     """
+    logger.info(f"{plugin.name} 검색 시작: '{query}'")
     print(f"\n{plugin.name} 검색: '{query}'")
     print("=" * 60)
 
@@ -154,20 +172,21 @@ async def cmd_plugin_search(plugin: BasePlugin, query: str, max_results: int) ->
         results = await plugin.search(query, query_type, max_results)
         plugin.format_results(results)
     except Exception as e:
+        logger.error(f"{plugin.name} 검색 오류: {str(e)}", exc_info=True)
         print(f"오류: {str(e)}")
-        import traceback
-        traceback.print_exc()
 
     print("\n" + "=" * 60)
 
 
 async def cmd_search_async(query: str, max_results: int) -> None:
     """config 우선순위에 따라 모든 소스 통합 검색 실행 (비동기)"""
+    logger.info(f"통합 검색 시작: '{query}'")
     print(f"\n검색어: '{query}'")
 
     # 1단계: 알라딘에서 도서 정보 가져오기
     book_info = await select_book_from_aladin(query, max_results=10)
     if not book_info:
+        logger.info("검색이 취소되었거나 도서를 찾을 수 없습니다.")
         print("\n검색이 취소되었거나 도서를 찾을 수 없습니다.")
         return
 
@@ -180,10 +199,12 @@ async def cmd_search_async(query: str, max_results: int) -> None:
     registry = PluginLoader.create_registry(config)
 
     if len(registry) == 0:
+        logger.warning("config.yaml에 활성화된 소스가 없습니다")
         print("\nconfig.yaml에 활성화된 소스가 없습니다")
         return
 
     # 3단계: 우선순위에 따라 각 플러그인 검색
+    logger.info(f"{len(registry.get_enabled_by_priority())}개 소스 검색 시작")
     print("\n\n우선순위 순서로 검색 중...")
     print("=" * 60)
 
@@ -216,14 +237,17 @@ async def cmd_search_async(query: str, max_results: int) -> None:
 
             # 쿼리 타입 검증
             if not plugin.validate_query_type(query_type):
+                logger.debug(f"{plugin.name}: 쿼리 타입 미지원으로 건너뜀")
                 print(f"  건너뜀: {plugin.name}은(는) 해당 쿼리 타입을 지원하지 않습니다")
                 continue
 
             # 검색 실행
+            logger.debug(f"{plugin.name} 검색 실행: query={query_to_use}, type={query_type}")
             results = await plugin.search(query_to_use, query_type, max_results)
 
             # 결과가 없으면 제목으로 재시도 (일부 플러그인)
             if not results and query_type == QueryType.ISBN and plugin.supports_title:
+                logger.debug(f"{plugin.name}: ISBN 검색 실패, 제목으로 재시도")
                 query_to_use = main_title if main_title else query
                 results = await plugin.search(query_to_use, QueryType.TITLE, max_results)
 
@@ -235,9 +259,8 @@ async def cmd_search_async(query: str, max_results: int) -> None:
                 await plugin.close()
 
         except Exception as e:
+            logger.error(f"{plugin.name} 검색 중 오류: {str(e)}", exc_info=True)
             print(f"  오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
 
     print("\n" + "=" * 60)
 
