@@ -297,6 +297,15 @@ class AladinPlugin(BasePlugin):
             query_type = self.detect_query_type(query)
 
         if query_type == QueryType.ISBN:
+            # 캐시에서 먼저 확인
+            try:
+                from src.cli import get_aladin_cache
+                cached = get_aladin_cache(query)
+                if cached:
+                    return [cached]
+            except ImportError:
+                pass
+
             result = await self.api.search_by_isbn(query)
             return [result] if result else []
         else:

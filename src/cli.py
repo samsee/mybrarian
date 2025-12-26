@@ -14,6 +14,28 @@ from dotenv import load_dotenv
 from src.sources.aladin import search_aladin, extract_isbn
 from src.plugins import PluginLoader, PluginRegistry, QueryType, BasePlugin
 
+# 알라딘 검색 결과 캐시 (ISBN을 키로 사용)
+_aladin_cache: Dict[str, Dict] = {}
+
+
+def get_aladin_cache(isbn: str) -> Optional[Dict]:
+    """
+    캐시에서 알라딘 검색 결과 조회
+
+    Args:
+        isbn: 조회할 ISBN
+
+    Returns:
+        캐시된 도서 정보 또는 None
+    """
+    return _aladin_cache.get(isbn)
+
+
+def clear_aladin_cache() -> None:
+    """알라딘 캐시 초기화"""
+    global _aladin_cache
+    _aladin_cache = {}
+
 
 def load_config() -> Dict:
     """config.yaml 파일 로드 및 파싱"""
@@ -60,6 +82,10 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
             title = book.get('title', 'N/A')
             print(f"\n찾은 도서: {title}")
             print(f"ISBN: {isbn}")
+
+            # 캐시에 저장
+            _aladin_cache[isbn] = book
+
             return {
                 'isbn': isbn,
                 'title': title,
@@ -89,6 +115,10 @@ async def select_book_from_aladin(query: str, max_results: int = 10) -> Optional
                     title = selected.get('title', 'N/A')
                     print(f"\n선택한 도서: {title}")
                     print(f"ISBN: {isbn}")
+
+                    # 캐시에 저장
+                    _aladin_cache[isbn] = selected
+
                     return {
                         'isbn': isbn,
                         'title': title,
