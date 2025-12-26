@@ -3,12 +3,15 @@ Plugin loading and registry for dynamic plugin management.
 """
 
 import importlib
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Type, Any
 import yaml
 
 from .base import BasePlugin
 from .adapters import SyncPluginAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class PluginRegistry:
@@ -108,10 +111,10 @@ class PluginLoader:
             with open(config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
         except FileNotFoundError:
-            print(f"Warning: config.yaml not found at {config_path}")
+            logger.warning(f"config.yaml not found at {config_path}")
             return {'sources': []}
         except yaml.YAMLError as e:
-            print(f"Warning: config.yaml parsing error: {e}")
+            logger.warning(f"config.yaml parsing error: {e}")
             return {'sources': []}
 
     @staticmethod
@@ -162,8 +165,9 @@ class PluginLoader:
                 plugin = PluginLoader._load_plugin_from_config(source_config)
                 if plugin:
                     registry.register(plugin, source_config)
+                    logger.debug(f"플러그인 로드 성공: {source_config.get('name', 'Unknown')}")
             except Exception as e:
-                print(f"Error loading plugin {source_config.get('name', 'Unknown')}: {e}")
+                logger.error(f"플러그인 로드 실패 {source_config.get('name', 'Unknown')}: {e}")
 
         return registry
 
@@ -182,7 +186,7 @@ class PluginLoader:
         class_name = source_config.get('class')
 
         if not module_path or not class_name:
-            print(f"Warning: Missing module or class in config for {source_config.get('name')}")
+            logger.warning(f"Missing module or class in config for {source_config.get('name')}")
             return None
 
         try:
@@ -191,10 +195,11 @@ class PluginLoader:
 
             is_sync = source_config.get('is_sync', False)
             if is_sync:
+                logger.debug(f"{class_name}: SyncPluginAdapter 적용")
                 plugin_instance = SyncPluginAdapter(plugin_instance)
 
             return plugin_instance
 
         except (ImportError, AttributeError, TypeError) as e:
-            print(f"Error loading {class_name} from {module_path}: {e}")
+            logger.error(f"Error loading {class_name} from {module_path}: {e}")
             return None
