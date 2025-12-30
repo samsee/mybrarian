@@ -460,10 +460,6 @@ uv add <package-name>
 
 이 프로젝트는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](LICENSE.txt) 파일을 참고하세요.
 
-## 💬 문의
+## 💬 안내
 
-프로젝트에 대한 질문이나 제안사항이 있으시면 이슈를 생성해 주세요.
-
----
-
-**Made with ❤️ by MyBrarian Team**
+대부분의 코드는 Claude Code를 이용해 작성했습니다.
