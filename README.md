@@ -149,6 +149,8 @@ REQUEST_TIMEOUT=10
 
 `config.yaml.example` 파일을 복사하여 `config.yaml` 파일을 생성하고 검색 소스의 우선순위를 설정합니다.
 
+**중요**: `config.yaml` 파일을 수정한 후에는 API 서버를 재시작해야 변경사항이 반영됩니다. 개발 모드(`--reload`)에서는 파일 변경 시 자동으로 재시작됩니다.
+
 ```bash
 cp config.yaml.example config.yaml
 ```
@@ -192,6 +194,12 @@ cache:
 
 ### 1. Web API 서버 실행
 
+**방법 1: 배치 파일 실행 (Windows 추천)**
+```bash
+run_api.bat
+```
+
+**방법 2: 직접 실행**
 ```bash
 uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -205,57 +213,63 @@ uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 #### 도서 검색
 
-**요청:**
+**요청 (제목으로 검색):**
 ```bash
-curl "http://localhost:8000/search?q=클린코드"
+curl "http://localhost:8000/search?q=클린코드&max_results=3"
 ```
 
-**응답:**
+**요청 (ISBN으로 검색):**
+```bash
+curl "http://localhost:8000/search?q=9788966261161&max_results=3&auto_select=true"
+```
+
+**응답 예시:**
 ```json
 {
-  "query": "클린코드",
-  "results": [
-    {
-      "source": "내 보유 장서",
-      "available": true,
-      "location": "C:/Users/YourName/OneDrive/Books/클린코드.pdf",
-      "details": {
-        "format": "PDF",
-        "size": "15.2 MB"
-      }
-    },
-    {
-      "source": "공공도서관",
-      "available": true,
-      "library": "국립중앙도서관",
-      "status": "대출가능",
-      "details": {
-        "isbn": "9788966261161",
-        "author": "로버트 C. 마틴",
-        "publisher": "인사이트"
-      }
-    },
-    {
-      "source": "알라딘 서점",
-      "available": true,
-      "price": 29700,
-      "url": "https://www.aladin.co.kr/shop/...",
-      "details": {
-        "isbn": "9788966261161",
-        "discount_rate": 10
-      }
-    }
-  ],
+  "query": "9791158393663",
+  "isbn": "9791158393663",
+  "selected_title": "상냥한주디가 알려주는 N잡러를 위한 미리캔버스",
   "total_sources": 7,
-  "searched_sources": 5,
-  "search_time": 2.34
+  "sources": [
+    {
+      "source_name": "내 보유 장서",
+      "priority": 1,
+      "success": true,
+      "error_message": null,
+      "results": [],
+      "result_count": 0
+    },
+    {
+      "source_name": "공공도서관",
+      "priority": 2,
+      "success": true,
+      "error_message": null,
+      "results": [],
+      "result_count": 0
+    },
+    {
+      "source_name": "싸피 e-book",
+      "priority": 4,
+      "success": true,
+      "error_message": null,
+      "results": [
+        {
+          "title": "상냥한주디가 알려주는 N잡러를 위한 미리캔버스",
+          "author": "김정훈",
+          "isbn": "4801158394395",
+          "availability": null,
+          "url": null,
+          "additional_info": {
+            "publisher": "위키북스",
+            "available": true,
+            "source": "ssafy_ebook"
+          }
+        }
+      ],
+      "result_count": 1
+    }
+  ]
 }
-```
-
-#### ISBN으로 검색
-
-```bash
-curl "http://localhost:8000/search?q=9788966261161"
 ```
 
 #### 검색 소스 목록 조회
@@ -267,45 +281,44 @@ curl "http://localhost:8000/sources"
 **응답:**
 ```json
 {
+  "total_count": 7,
+  "enabled_count": 7,
   "sources": [
     {
       "name": "내 보유 장서",
       "priority": 1,
       "enabled": true,
-      "status": "active"
+      "supports_isbn": false,
+      "supports_title": true,
+      "config": {
+        "module": "src.sources.local_books",
+        "class": "LocalBooksPlugin",
+        "books_dir": "C:\\OneDrive\\SSAFY\\books"
+      }
     },
     {
       "name": "공공도서관",
       "priority": 2,
       "enabled": true,
-      "status": "active"
-    },
-    ...
+      "supports_isbn": true,
+      "supports_title": false,
+      "config": {
+        "module": "src.sources.library",
+        "class": "LibraryPlugin",
+        "libraries": ["111003", "111030"]
+      }
+    }
   ]
 }
 ```
 
-#### 설정 조회 및 수정
+#### 설정 조회
 
-**조회:**
 ```bash
 curl "http://localhost:8000/config"
 ```
 
-**수정:**
-```bash
-curl -X PUT "http://localhost:8000/config" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sources": [
-      {
-        "name": "내 보유 장서",
-        "priority": 1,
-        "enabled": true
-      }
-    ]
-  }'
-```
+**참고**: API는 설정을 읽기 전용으로만 제공합니다. 설정을 변경하려면 `config.yaml` 파일을 직접 수정한 후 서버를 재시작하세요. (개발 모드 `--reload`에서는 자동 재시작됩니다)
 
 ### 3. CLI 사용
 
