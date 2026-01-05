@@ -192,15 +192,10 @@ cache:
 
 ## 🚀 사용 방법
 
-### 1. Web API 서버 실행
+### 1. Backend API 서버 실행
 
-**방법 1: 배치 파일 실행 (Windows 추천)**
 ```bash
-run_api.bat
-```
-
-**방법 2: 직접 실행**
-```bash
+cd backend
 uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -209,7 +204,17 @@ uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 - API 문서 (Swagger): http://localhost:8000/docs
 - API 문서 (ReDoc): http://localhost:8000/redoc
 
-### 2. API 사용 예시
+### 2. Frontend 서버 실행
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+브라우저에서 http://localhost:5173 접속
+
+### 3. API 사용 예시
 
 #### 도서 검색
 
@@ -320,7 +325,7 @@ curl "http://localhost:8000/config"
 
 **참고**: API는 설정을 읽기 전용으로만 제공합니다. 설정을 변경하려면 `config.yaml` 파일을 직접 수정한 후 서버를 재시작하세요. (개발 모드 `--reload`에서는 자동 재시작됩니다)
 
-### 3. CLI 사용
+### 4. CLI 사용
 
 ```bash
 # 도서 검색
@@ -349,27 +354,31 @@ mybrarian search "클린코드"
 
 ```
 mybrarian/
-├── src/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI 앱
-│   ├── config.py            # 설정 관리
-│   ├── models.py            # 데이터 모델
-│   ├── cli.py               # CLI 인터페이스
-│   └── sources/             # 검색 소스 모듈
-│       ├── __init__.py
-│       ├── aladin.py            # 알라딘 API
-│       ├── library.py           # 공공도서관
-│       ├── ridibooks_select.py  # 리디북스 셀렉트
-│       ├── bookers.py           # 부커스
-│       ├── google_play.py       # 구글 플레이북
-│       └── my_books.py          # 보유 장서
-├── tests/                   # 테스트 코드
-├── .env.example             # 환경변수 템플릿
-├── .gitignore
-├── config.yaml.example      # 설정 파일 템플릿
-├── pyproject.toml           # 프로젝트 설정 및 의존성
-├── uv.lock                  # 의존성 잠금 파일
-├── CLAUDE.md                # 개발 진행 상황
+├── backend/                 # FastAPI 백엔드 서버
+│   ├── src/
+│   │   ├── main.py              # FastAPI 앱
+│   │   ├── config.py            # 설정 관리
+│   │   ├── models.py            # 데이터 모델
+│   │   ├── cli.py               # CLI 인터페이스
+│   │   ├── plugins/             # 플러그인 시스템
+│   │   └── sources/             # 검색 소스 모듈
+│   ├── tests/                   # 테스트 코드
+│   ├── pyproject.toml           # 프로젝트 설정 및 의존성
+│   ├── uv.lock                  # 의존성 잠금 파일
+│   └── CLAUDE.md                # Backend 개발 가이드
+│
+├── frontend/                # React 프론트엔드
+│   ├── src/
+│   │   ├── components/          # React 컴포넌트
+│   │   ├── services/            # API 클라이언트
+│   │   └── types/               # TypeScript 타입
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── CLAUDE.md                # Frontend 개발 가이드
+│
+├── config.yaml              # 검색 소스 우선순위 설정
+├── .env                     # 환경 변수
+├── CLAUDE.md                # 전체 프로젝트 가이드
 └── README.md
 ```
 

@@ -56,7 +56,8 @@ class AladinAPI:
             "start": 1,
             "SearchTarget": search_target,
             "output": "xml",
-            "Version": "20131101"
+            "Version": "20131101",
+            "Cover": "Big"
         }
 
         try:
@@ -90,7 +91,8 @@ class AladinAPI:
             "ItemId": isbn,
             "output": "xml",
             "Version": "20131101",
-            "OptResult": "ebookList,usedList,reviewList"
+            "OptResult": "ebookList,usedList,reviewList",
+            "Cover": "Big"
         }
 
         try:
@@ -143,6 +145,11 @@ class AladinAPI:
                     # " - "도 없으면 전체가 메인 제목
                     main_title = full_title
 
+                # 표지 이미지 URL 고해상도로 변경
+                cover_url = self._get_text_ns(item, 'cover', namespace)
+                if cover_url and 'cover200' in cover_url:
+                    cover_url = cover_url.replace('cover200', 'cover500')
+
                 book_info = {
                     'title': full_title,  # 전체 제목 (기존 호환성)
                     'mainTitle': main_title,  # 부제목 제외한 메인 제목
@@ -153,7 +160,7 @@ class AladinAPI:
                     'isbn': self._get_text_ns(item, 'isbn', namespace),
                     'isbn13': self._get_text_ns(item, 'isbn13', namespace),
                     'description': self._get_text_ns(item, 'description', namespace),
-                    'cover': self._get_text_ns(item, 'cover', namespace),
+                    'cover': cover_url,
                     'link': self._get_text_ns(item, 'link', namespace),
                     'categoryName': self._get_text_ns(item, 'categoryName', namespace),
                     'priceSales': self._get_text_ns(item, 'priceSales', namespace),
