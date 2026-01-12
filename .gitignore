@@ -60,7 +60,7 @@ cache/
 __pycache__/
 
 # Project specific
-config.yaml
+backend/config.yaml
 my_books_index.json
 
 
@@ -70,4 +70,4 @@ CLAUDE.md
 init.md
 
 # SSAFY 관련 (기관 특정)
-src/sources/ssafy_ebook.py
+backend/src/sources/ssafy_ebook.py

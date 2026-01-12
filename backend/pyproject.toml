@@ -2,7 +2,6 @@
 name = "mybrarian"
 version = "0.1.0"
 description = "ISBN 또는 도서명으로 여러 소스를 통합 검색하여 도서의 이용 가능 여부를 확인하는 시스템"
-readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10,<3.13"
 dependencies = [

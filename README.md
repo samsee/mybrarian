@@ -57,6 +57,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 3. 의존성 설치
 
 ```bash
+# backend 디렉토리로 이동
+cd backend
+
 # 가상환경 생성 및 의존성 설치 (한 번에)
 uv sync
 ```
@@ -66,6 +69,8 @@ uv sync
 일부 소스(리디북스, 부커스 등)는 동적 웹페이지를 처리하기 위해 Playwright가 필요합니다.
 
 ```bash
+# backend 디렉토리에서 실행
+cd backend
 uv run playwright install chromium
 ```
 
@@ -73,9 +78,10 @@ uv run playwright install chromium
 
 ### 1. 환경 변수 설정
 
-`.env.example` 파일을 복사하여 `.env` 파일을 생성하고 필요한 정보를 입력합니다.
+`backend/` 디렉토리의 `.env.example` 파일을 복사하여 `.env` 파일을 생성하고 필요한 정보를 입력합니다.
 
 ```bash
+cd backend
 cp .env.example .env
 ```
 
@@ -111,7 +117,14 @@ CACHE_TTL=3600
 REQUEST_TIMEOUT=10
 ```
 
-### 2. API 키 발급
+### 2. 설정 파일
+
+`backend/config.yaml` 파일에서 검색 소스 우선순위 및 기타 설정을 관리할 수 있습니다.
+
+```bash
+cd backend
+cp config.yaml.example config.yaml  # 필요시
+```
 
 #### 알라딘 API 키
 1. [알라딘 개발자센터](https://www.aladin.co.kr/ttb/wblog_manage.aspx) 접속
