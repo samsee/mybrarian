@@ -69,5 +69,5 @@ my_books_index.json
 CLAUDE.md
 init.md
 
-# SSAFY 관련 (기관 특정)
-backend/src/sources/ssafy_ebook.py
+# 개인 및 기관 특정 소스 (Private sources)
+backend/src/sources/private/
